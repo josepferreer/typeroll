@@ -58,8 +58,8 @@
   }
   .slot { position: relative; display: flex; flex-direction: column; gap: 12px; transition: opacity .25s; }
   #stage, .dock { transition: padding .32s var(--ease), left .32s var(--ease); }
-  body.drawer-open .slot:not(.target) { opacity: .4; }
-  body.drawer-open .slot.target .meta { opacity: 1; }
+  body.drawer-open .slot:not(.is-target) { opacity: .4; }
+  body.drawer-open .slot.is-target .meta { opacity: 1; }
   @media (min-width: 900px) {
     body.drawer-open #stage { padding-right: calc(420px + max(16px, 4vw)); }
     body.drawer-open .dock { left: calc((100vw - 420px) / 2); }
@@ -843,7 +843,7 @@ function setTarget(i) {
   markTarget();
 }
 function markTarget() {
-  [...stage.children].forEach((el, k) => el.classList.toggle('target', k === targetSlot));
+  [...stage.children].forEach((el, k) => el.classList.toggle('is-target', k === targetSlot));
 }
 function openDrawer(t) {
   if (t) setTab(t);
