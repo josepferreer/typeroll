@@ -1,0 +1,1080 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Typeroll</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23111'/%3E%3Cpath d='M15 15h34v10H37v24H27V25H15z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --fg: #151515;
+    --ui-bg: #121212;
+    --ui-fg: #f2f2f2;
+    --ui-mute: #8f8f8f;
+    --ui-line: rgba(255, 255, 255, .1);
+    --ui-hover: rgba(255, 255, 255, .08);
+    --panel: #ffffff;
+    --panel-fg: #141414;
+    --panel-mute: #6b6b6b;
+    --panel-line: #e7e7e7;
+    --panel-hover: #f3f3f3;
+    --ease: cubic-bezier(.2, .7, .2, 1);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --panel: #141414;
+      --panel-fg: #ededed;
+      --panel-mute: #8a8a8a;
+      --panel-line: #262626;
+      --panel-hover: #1f1f1f;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+    transition: background-color .4s, color .4s;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font: inherit; color: inherit; }
+  svg { flex: none; display: block; }
+
+  /* ---------- Lienzo ---------- */
+  #stage {
+    min-height: 100vh;
+    max-width: 1240px;
+    margin: 0 auto;
+    padding: 10vh max(16px, 8vw) 170px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: clamp(28px, 5vh, 56px);
+  }
+  .slot { position: relative; display: flex; flex-direction: column; gap: 12px; }
+  .slot.locked::before {
+    content: "";
+    position: absolute;
+    left: -18px; top: 0; bottom: 0;
+    width: 2px;
+    border-radius: 2px;
+    background: currentColor;
+    opacity: .5;
+  }
+  .meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    font: 12px/1 system-ui, "Segoe UI", sans-serif;
+    opacity: .4;
+    transition: opacity .2s;
+  }
+  .slot:hover .meta, .slot:focus-within .meta, .slot.locked .meta { opacity: 1; }
+  .meta .num { width: 18px; font-variant-numeric: tabular-nums; opacity: .6; }
+  .meta button, .meta select, .meta label {
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 7px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .meta button:hover, .meta select:hover, .meta label:hover {
+    background: color-mix(in srgb, currentColor 8%, transparent);
+  }
+  .meta .fname {
+    max-width: 34ch;
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    line-height: 26px;
+  }
+  .meta select { max-width: 20ch; }
+  .meta select option { color: #111; background: #fff; }
+  .meta .icon { width: 28px; padding: 0; justify-content: center; }
+  .meta .lock[aria-pressed="true"] { background: currentColor; }
+  .meta .lock[aria-pressed="true"] svg { color: var(--bg); }
+  .meta .fsize input { width: 90px; accent-color: currentColor; cursor: pointer; }
+  .meta .fsize span { min-width: 3ch; font-variant-numeric: tabular-nums; }
+  .meta .fcolor { padding: 0 6px; }
+  .meta input[type="color"] { width: 16px; height: 16px; }
+
+  .sample {
+    outline: none;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    border-radius: 4px;
+  }
+  .sample:focus {
+    outline: 1px dashed color-mix(in srgb, currentColor 30%, transparent);
+    outline-offset: 10px;
+  }
+  .sample.swap { animation: swapIn .38s var(--ease); }
+  @keyframes swapIn {
+    from { opacity: 0; transform: translateY(6px); filter: blur(5px); }
+    to { opacity: 1; transform: none; filter: none; }
+  }
+
+  input[type="color"] {
+    -webkit-appearance: none;
+    appearance: none;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+    border-radius: 50%;
+    background: none;
+    cursor: pointer;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+  input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+  input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+
+  /* ---------- Barra inferior ---------- */
+  .dock {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    max-width: calc(100vw - 32px);
+    padding: 8px;
+    background: var(--ui-bg);
+    color: var(--ui-fg);
+    border: 1px solid var(--ui-line);
+    border-radius: 16px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .28);
+  }
+  .grp { display: flex; align-items: center; gap: 2px; }
+  .sep { width: 1px; height: 24px; background: var(--ui-line); margin: 0 4px; }
+  .dbtn {
+    height: 38px;
+    min-width: 38px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .dbtn:hover { background: var(--ui-hover); }
+  .dbtn:disabled { opacity: .35; cursor: default; background: transparent; }
+  .dbtn.primary {
+    padding: 0 18px;
+    background: #fff;
+    color: #111;
+    font-weight: 600;
+  }
+  .dbtn.primary:hover { background: #e8e8e8; }
+  .stepper output {
+    min-width: 22px;
+    text-align: center;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .swatch {
+    height: 38px;
+    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--ui-mute);
+  }
+  .swatch:hover { background: var(--ui-hover); color: var(--ui-fg); }
+  .swatch input { width: 20px; height: 20px; border-color: rgba(255, 255, 255, .25); }
+
+  /* ---------- Biblioteca ---------- */
+  #drawer {
+    position: fixed;
+    top: 0; right: 0;
+    z-index: 20;
+    width: min(420px, 100vw);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    color: var(--panel-fg);
+    border-left: 1px solid var(--panel-line);
+    box-shadow: -20px 0 60px rgba(0, 0, 0, .12);
+    transform: translateX(105%);
+    transition: transform .32s var(--ease);
+  }
+  #drawer.open { transform: none; }
+  .dhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 14px 12px 0 14px;
+  }
+  .tabs { display: flex; gap: 2px; }
+  .tabs button {
+    display: inline-flex;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--panel-mute);
+    cursor: pointer;
+  }
+  .tabs button:hover { color: var(--panel-fg); }
+  .tabs button.on { color: var(--panel-fg); background: var(--panel-hover); }
+  .tabs span { opacity: .6; font-variant-numeric: tabular-nums; }
+  .pbtn {
+    width: 34px; height: 34px;
+    display: inline-grid;
+    place-items: center;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--panel-mute);
+    cursor: pointer;
+  }
+  .pbtn:hover { background: var(--panel-hover); color: var(--panel-fg); }
+  .dtools {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 18px 16px;
+    border-bottom: 1px solid var(--panel-line);
+  }
+  #search {
+    height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--panel-line);
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+  #search:focus { border-color: var(--panel-mute); }
+  .opts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px 16px;
+    font-size: 13px;
+    color: var(--panel-mute);
+  }
+  .checks { display: flex; flex-wrap: wrap; gap: 14px; }
+  .checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+  .checks input { accent-color: var(--panel-fg); margin: 0; }
+  .target { display: flex; align-items: center; gap: 4px; }
+  .target span { margin-right: 4px; }
+  .target button {
+    width: 26px; height: 26px;
+    border: 1px solid var(--panel-line);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--panel-fg);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  .target button.on { background: var(--panel-fg); color: var(--panel); border-color: var(--panel-fg); }
+  #list { flex: 1; overflow: auto; }
+  #list.rows { padding: 6px 8px 24px; }
+  #list.cards { padding: 14px 18px 24px; display: flex; flex-direction: column; gap: 10px; }
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 6px 6px 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 46px;
+  }
+  .row:hover { background: var(--panel-hover); }
+  .row .pv {
+    flex: 1;
+    min-width: 0;
+    font-size: 22px;
+    line-height: 34px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .row .n { font-size: 12px; color: var(--panel-mute); font-variant-numeric: tabular-nums; }
+  .row .pbtn { opacity: 0; }
+  .row:hover .pbtn { opacity: 1; }
+  .card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px 44px 18px 18px;
+    border: 1px solid var(--panel-line);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform .2s var(--ease);
+  }
+  .card:hover { transform: translateY(-2px); }
+  .card .l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; font-size: 14px; }
+  .card .l:nth-child(1) { font-size: 26px; }
+  .card .l:nth-child(2) { font-size: 18px; }
+  .card .pbtn { position: absolute; top: 8px; right: 8px; color: inherit; opacity: .5; }
+  .card .pbtn:hover { opacity: 1; background: color-mix(in srgb, currentColor 10%, transparent); color: inherit; }
+  .empty { padding: 40px 18px; text-align: center; color: var(--panel-mute); }
+
+  /* ---------- Aviso ---------- */
+  #toast {
+    position: fixed;
+    left: 50%;
+    top: 20px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--ui-bg);
+    color: var(--ui-fg);
+    font-size: 13px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -8px);
+    transition: opacity .25s, transform .25s var(--ease);
+  }
+  #toast.show { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+  #toast button { border: 0; background: none; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0; }
+
+  /* ---------- Pantalla inicial ---------- */
+  #gate {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: var(--bg);
+  }
+  #gate[hidden] { display: none; }
+  .gate { display: flex; flex-direction: column; align-items: center; gap: 18px; max-width: 440px; text-align: center; }
+  /* ---------- Marca ---------- */
+  .brand {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .45em;
+    margin: 0;
+    color: inherit;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .brand b {
+    font: 800 1em/1 "Bricolage Grotesque", system-ui, sans-serif;
+    font-variation-settings: "opsz" 96;
+    letter-spacing: -.045em;
+  }
+  .brand i {
+    font: italic 400 .42em/1 "Instrument Serif", Georgia, serif;
+    letter-spacing: .01em;
+    opacity: .6;
+  }
+  .brand-fixed {
+    position: absolute;
+    top: 22px;
+    left: max(16px, 2.2vw);
+    z-index: 5;
+    font-size: 22px;
+    opacity: .9;
+    pointer-events: none;
+  }
+  .brand-fixed i { font-size: 13px; opacity: .72; }
+  .gate .brand { font-size: clamp(48px, 9vw, 92px); }
+  .gate p { margin: 0; opacity: .6; font-size: 15px; }
+  .gate .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .btn {
+    height: 46px;
+    padding: 0 22px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--fg);
+    color: var(--bg);
+    font: 600 15px system-ui, "Segoe UI", sans-serif;
+    cursor: pointer;
+  }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.ghost { background: transparent; color: var(--fg); border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); }
+
+  @media (max-width: 720px) {
+    .dbtn .lbl, .swatch span { display: none; }
+    .slot.locked::before { left: -10px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="brand brand-fixed" aria-hidden="true"><b>Typeroll</b><i>by josepferreer</i></div>
+
+<main id="stage" aria-live="polite"></main>
+
+<nav class="dock" aria-label="Controles">
+  <div class="grp stepper" title="Cuántas fuentes">
+    <button class="dbtn" id="minus" aria-label="Una fuente menos">−</button>
+    <output id="nOut">2</output>
+    <button class="dbtn" id="plus" aria-label="Una fuente más">+</button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp">
+    <label class="swatch" title="Color de fondo"><input type="color" id="bgIn"><span>Fondo</span></label>
+    <label class="swatch" title="Color del texto (todas)"><input type="color" id="fgIn"><span>Texto</span></label>
+    <button class="dbtn" id="swapBtn" data-icon="swap" title="Invertir colores" aria-label="Invertir colores"></button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp">
+    <button class="dbtn" id="undoBtn" data-icon="undo" title="Anterior (Ctrl+Z)" aria-label="Combinación anterior"></button>
+    <button class="dbtn" id="saveBtn" data-icon="bookmark" title="Guardar combinación" aria-label="Guardar combinación"></button>
+    <button class="dbtn" id="copyBtn" data-icon="copy" title="Copiar nombres" aria-label="Copiar nombres"></button>
+    <button class="dbtn" id="libBtn" data-icon="type" title="Biblioteca de fuentes"><span class="lbl">Biblioteca</span></button>
+  </div>
+  <button class="dbtn primary" id="shuffleBtn" data-icon="shuffle" title="Randomizar (Espacio)"><span class="lbl">Randomizar</span></button>
+</nav>
+
+<aside id="drawer" aria-hidden="true">
+  <div class="dhead">
+    <div class="tabs" role="tablist">
+      <button data-tab="all" class="on">Todas<span id="cAll"></span></button>
+      <button data-tab="saved">Guardadas<span id="cSaved"></span></button>
+      <button data-tab="excluded">Descartadas<span id="cEx"></span></button>
+    </div>
+    <button class="pbtn" id="closeDrawer" data-icon="close" aria-label="Cerrar"></button>
+  </div>
+  <div class="dtools">
+    <input type="search" id="search" placeholder="Buscar fuente" autocomplete="off" spellcheck="false">
+    <div class="opts">
+      <div class="checks">
+        <label><input type="checkbox" id="hideSymbols"> Ocultar símbolos</label>
+        <label><input type="checkbox" id="randomStyles"> Estilos aleatorios</label>
+      </div>
+      <div class="target" id="target"></div>
+    </div>
+  </div>
+  <div id="list" class="rows"></div>
+</aside>
+
+<div id="toast" role="status"></div>
+
+<div id="gate">
+  <div class="gate">
+    <h1 class="brand"><b>Typeroll</b><i>by josepferreer</i></h1>
+    <p id="gateMsg">Lee las fuentes instaladas en este equipo.</p>
+    <div class="actions">
+      <button class="btn" id="loadBtn">Cargar mis fuentes</button>
+      <button class="btn ghost" id="fallbackBtn" hidden>Detectar fuentes comunes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ---------- Datos fijos ---------- */
+const KEY = 'ruleta-fuentes:v1';
+const MAX_SLOTS = 8;
+const SYMBOL_RE = /(wingdings|webdings|^symbol$|marlett|mdl2|fluent icons|emoji|dingbat|bookshelf symbol|mt extra|reference specialty|holomdl|\bicons?\b|ornament|zapf dingbats|font awesome|material symbols)/i;
+
+const DEFAULT_TEXTS = [
+  { text: 'Las buenas ideas llegan en voz baja', size: 76 },
+  { text: 'Una combinación tipográfica para cada intuición', size: 34 },
+  { text: 'El diseño es la forma silenciosa de una decisión. Cada letra carga un tono, un ritmo y una época; elegir bien es escuchar lo que el texto ya quiere decir.', size: 19 },
+  { text: 'Edición 01 · Noviembre 2026', size: 14 },
+];
+const EXTRA_TEXT = { text: 'Aa Bb Cc Dd Ee Ff Gg 0123456789', size: 30 };
+
+const COMMON_FONTS = ['Arial', 'Arial Black', 'Arial Narrow', 'Bahnschrift', 'Book Antiqua', 'Bookman Old Style', 'Calibri', 'Cambria', 'Candara', 'Century', 'Century Gothic', 'Comic Sans MS', 'Consolas', 'Constantia', 'Corbel', 'Courier New', 'Ebrima', 'Franklin Gothic Medium', 'Gabriola', 'Gadugi', 'Garamond', 'Georgia', 'Impact', 'Ink Free', 'Lucida Console', 'Lucida Sans Unicode', 'Microsoft Sans Serif', 'MV Boli', 'Palatino Linotype', 'Segoe Print', 'Segoe Script', 'Segoe UI', 'Sitka Text', 'Sylfaen', 'Tahoma', 'Times New Roman', 'Trebuchet MS', 'Verdana', 'Aptos', 'Grandview', 'Seaford', 'Tenorite', 'Skeena', 'Avenir', 'Avenir Next', 'Baskerville', 'Big Caslon', 'Didot', 'Futura', 'Gill Sans', 'Helvetica', 'Helvetica Neue', 'Hoefler Text', 'Menlo', 'Monaco', 'Optima', 'Palatino', 'Rockwell', 'SF Pro Display', 'SF Pro Text', 'New York', 'American Typewriter', 'Andale Mono', 'Chalkboard', 'Copperplate', 'Bodoni 72', 'Charter', 'Cochin', 'Iowan Old Style', 'Superclarendon', 'Montserrat', 'Roboto', 'Open Sans', 'Lato', 'Poppins', 'Inter', 'Raleway', 'Oswald', 'Playfair Display', 'Merriweather', 'Source Sans Pro', 'Source Serif Pro', 'Nunito', 'Work Sans', 'DM Sans', 'Space Grotesk', 'IBM Plex Sans', 'IBM Plex Serif', 'IBM Plex Mono', 'Fira Sans', 'Fira Code', 'JetBrains Mono', 'Libre Baskerville', 'Lora', 'PT Sans', 'PT Serif', 'Noto Sans', 'Noto Serif', 'Ubuntu', 'Bebas Neue', 'Archivo', 'Manrope', 'Hanken Grotesk', 'Myriad Pro', 'Minion Pro', 'Adobe Garamond Pro', 'Acumin Pro', 'Proxima Nova', 'Futura PT', 'Gotham', 'Brandon Grotesque', 'Neue Haas Grotesk Display Pro', 'Univers', 'Frutiger', 'Akzidenz-Grotesk', 'DIN', 'Trajan Pro', 'Bodoni MT', 'Gill Sans MT', 'Bauhaus 93', 'Broadway', 'Cooper Black', 'Eras ITC', 'Lucida Handwriting', 'Brush Script MT', 'Old English Text MT', 'Stencil', 'Tw Cen MT', 'Agency FB'];
+
+const ICON = {
+  shuffle: '<path d="M16 3h5v5"/><path d="M4 20 21 3"/><path d="M21 16v5h-5"/><path d="m15 15 6 6"/><path d="m4 4 5 5"/>',
+  dice: '<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  unlock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.9-1"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
+  bookmark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>',
+  type: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
+  swap: '<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  close: '<path d="M18 6 6 18M6 6l12 12"/>',
+};
+const svg = (name, size = 18) =>
+  `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[name]}</svg>`;
+
+/* ---------- Utilidades ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const rand = arr => arr[Math.floor(Math.random() * arr.length)];
+const cssStr = s => '"' + String(s).replace(/["\\]/g, '\\$&') + '"';
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = s => String(s).normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+const cmp = (a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' });
+const fmt = n => n.toLocaleString('es');
+
+const WEIGHTS = [
+  [/hairline|thin/i, 100], [/extra ?light|ultra ?light/i, 200], [/semi ?light|demi ?light/i, 350],
+  [/light/i, 300], [/semi ?bold|demi ?bold/i, 600], [/extra ?bold|ultra ?bold/i, 800],
+  [/black|heavy/i, 900], [/bold/i, 700], [/medium/i, 500],
+];
+const weightOf = (s = '') => { for (const [re, w] of WEIGHTS) if (re.test(s)) return w; return 400; };
+const italicOf = (s = '') => /italic|oblique/i.test(s) ? 1 : 0;
+
+/* ---------- Estado ---------- */
+let fonts = new Map();     // familia -> [{ ps, style }]
+let families = [];
+let history = [];
+let targetSlot = 0;
+let tab = 'all';
+let rows = [];
+
+const defaults = () => ({
+  n: 2, bg: '#f4f1ea', fg: '#151515', slots: [], excluded: [], saved: [],
+  hideSymbols: true, randomStyles: false,
+});
+const state = (() => {
+  try { return Object.assign(defaults(), JSON.parse(localStorage.getItem(KEY)) || {}); }
+  catch { return defaults(); }
+})();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+
+const makeSlot = i => {
+  const d = DEFAULT_TEXTS[i] || EXTRA_TEXT;
+  return { family: null, ps: null, style: null, size: d.size, text: d.text, color: null, locked: false };
+};
+const ensureSlots = () => { for (let i = 0; i < state.n; i++) if (!state.slots[i]) state.slots[i] = makeSlot(i); };
+const active = () => state.slots.slice(0, state.n);
+
+/* ---------- Fuentes: @font-face por estilo exacto ---------- */
+const faceSheet = document.createElement('style');
+document.head.append(faceSheet);
+const faces = new Map();
+function cssFamily(f) {
+  if (!f || !f.family) return 'system-ui';
+  const fam = cssStr(f.family);
+  if (!f.ps) return `${fam}, system-ui`;
+  let alias = faces.get(f.ps);
+  if (!alias) {
+    alias = 'rf' + faces.size;
+    faces.set(f.ps, alias);
+    faceSheet.append(`@font-face{font-family:"${alias}";src:local(${cssStr(f.ps)});}\n`);
+  }
+  return `"${alias}", ${fam}, system-ui`;
+}
+
+function pickStyle(family, random) {
+  const list = fonts.get(family) || [];
+  if (!list.length) return { ps: null, style: null };
+  if (random) return rand(list);
+  return list.find(f => /^(regular|normal|book|roman|plain)$/i.test(f.style))
+    || list.find(f => !italicOf(f.style) && weightOf(f.style) === 400)
+    || list.find(f => !italicOf(f.style))
+    || list[0];
+}
+function assign(slot, family, random) {
+  const st = pickStyle(family, random);
+  slot.family = family;
+  slot.ps = st.ps;
+  slot.style = st.style;
+}
+function pool() {
+  const ex = new Set(state.excluded);
+  return families.filter(f => !ex.has(f) && !(state.hideSymbols && SYMBOL_RE.test(f)));
+}
+function pickFor(slot, p, used) {
+  let f, tries = 0;
+  do { f = rand(p); } while ((used.has(f) || f === slot.family) && ++tries < 40);
+  used.add(f);
+  assign(slot, f, state.randomStyles);
+}
+
+/* ---------- Acciones ---------- */
+function pushHistory() {
+  history.push(state.slots.map(s => ({ family: s.family, ps: s.ps, style: s.style })));
+  if (history.length > 80) history.shift();
+}
+function undo() {
+  const snap = history.pop();
+  if (!snap) return toast('No hay nada anterior');
+  snap.forEach((f, i) => {
+    const s = state.slots[i];
+    if (!s) return;
+    const changed = s.family !== f.family || s.ps !== f.ps;
+    Object.assign(s, f);
+    if (i < state.n) updateSlot(i, changed);
+  });
+  save();
+}
+function shuffle() {
+  const p = pool();
+  if (!p.length) return toast('No hay fuentes disponibles');
+  const list = active();
+  if (list.every(s => s.locked)) return toast('Todas están fijadas');
+  pushHistory();
+  const used = new Set(list.filter(s => s.locked).map(s => s.family));
+  list.forEach((s, i) => { if (!s.locked) { pickFor(s, p, used); updateSlot(i, true); } });
+  save();
+}
+function reroll(i) {
+  const p = pool();
+  if (!p.length) return;
+  const used = new Set(active().filter((_, k) => k !== i).map(s => s.family));
+  pickFor(state.slots[i], p, used);
+  updateSlot(i, true);
+}
+function toggleLock(i) {
+  const s = state.slots[i];
+  s.locked = !s.locked;
+  updateSlot(i);
+  save();
+}
+function discard(i) {
+  const s = state.slots[i];
+  if (!s.family) return;
+  const fam = s.family;
+  pushHistory();
+  if (!state.excluded.includes(fam)) state.excluded.push(fam);
+  s.locked = false;
+  reroll(i);
+  save();
+  refreshDrawer();
+  toast(`Descartada: ${fam}`, 'Deshacer', () => {
+    state.excluded = state.excluded.filter(x => x !== fam);
+    undo();
+    refreshDrawer();
+  });
+}
+function setN(n) {
+  n = Math.max(1, Math.min(MAX_SLOTS, n));
+  if (n === state.n) return;
+  const grew = n > state.n;
+  state.n = n;
+  ensureSlots();
+  if (grew && families.length) {
+    const p = pool();
+    const used = new Set(active().filter(s => s.family).map(s => s.family));
+    active().forEach(s => { if (!s.family && p.length) pickFor(s, p, used); });
+  }
+  if (targetSlot >= n) targetSlot = n - 1;
+  buildStage();
+  renderTarget();
+  save();
+}
+function saveCombo() {
+  state.saved.unshift({
+    id: Date.now(), bg: state.bg, fg: state.fg,
+    items: active().map(s => ({ family: s.family, ps: s.ps, style: s.style, size: s.size, color: s.color })),
+  });
+  save();
+  refreshDrawer();
+  toast('Combinación guardada', 'Ver', () => openDrawer('saved'));
+}
+function restoreCombo(k) {
+  const c = state.saved[k];
+  if (!c) return;
+  pushHistory();
+  state.n = c.items.length;
+  ensureSlots();
+  c.items.forEach((it, i) => Object.assign(state.slots[i], it, { locked: false }));
+  state.bg = c.bg;
+  state.fg = c.fg;
+  applyColors();
+  buildStage();
+  renderTarget();
+  save();
+  toast('Combinación recuperada');
+}
+async function copyCombo() {
+  const lines = active().map((s, i) =>
+    `${i + 1}. ${s.family || '—'}${s.style ? ' — ' + s.style : ''} · ${s.size}px${s.color ? ' · ' + s.color : ''}`);
+  lines.push(`Fondo ${state.bg} · Texto ${state.fg}`);
+  try { await navigator.clipboard.writeText(lines.join('\n')); toast('Nombres copiados'); }
+  catch { toast('No se pudo copiar'); }
+}
+
+/* ---------- Colores ---------- */
+const bgIn = $('#bgIn'), fgIn = $('#fgIn');
+function applyColors() {
+  const r = document.documentElement.style;
+  r.setProperty('--bg', state.bg);
+  r.setProperty('--fg', state.fg);
+  bgIn.value = state.bg;
+  fgIn.value = state.fg;
+}
+bgIn.addEventListener('input', e => { state.bg = e.target.value; applyColors(); save(); });
+fgIn.addEventListener('input', e => {
+  state.fg = e.target.value;
+  state.slots.forEach(s => { s.color = null; });
+  applyColors();
+  active().forEach((_, i) => updateSlot(i));
+  save();
+});
+$('#swapBtn').addEventListener('click', () => {
+  [state.bg, state.fg] = [state.fg, state.bg];
+  state.slots.forEach(s => { s.color = null; });
+  applyColors();
+  active().forEach((_, i) => updateSlot(i));
+  save();
+});
+
+/* ---------- Lienzo ---------- */
+const stage = $('#stage');
+function slotEl(i) {
+  const el = document.createElement('section');
+  el.className = 'slot';
+  el.innerHTML = `
+    <div class="meta">
+      <span class="num">${i + 1}</span>
+      <button class="fname" title="Elegir en la biblioteca"></button>
+      <select class="fstyle" title="Estilo"></select>
+      <label class="fsize" title="Tamaño"><input type="range" min="10" max="220" step="1"><span></span></label>
+      <label class="fcolor" title="Color de esta fuente"><input type="color"></label>
+      <button class="icon reroll" title="Randomizar solo esta" aria-label="Randomizar solo esta">${svg('dice', 15)}</button>
+      <button class="icon lock" title="Fijar (tecla ${i + 1})" aria-label="Fijar"></button>
+      <button class="icon discard" title="Descartar esta fuente" aria-label="Descartar">${svg('ban', 15)}</button>
+    </div>
+    <div class="sample" contenteditable="plaintext-only" spellcheck="false"></div>`;
+  const s = () => state.slots[i];
+  const sample = $('.sample', el);
+  sample.textContent = s().text;
+  sample.addEventListener('input', () => { s().text = sample.textContent; save(); });
+  $('.fname', el).addEventListener('click', () => { targetSlot = i; openDrawer('all'); });
+  $('.fstyle', el).addEventListener('change', e => {
+    const opt = e.target.selectedOptions[0];
+    s().ps = opt.value || null;
+    s().style = opt.textContent;
+    updateSlot(i, true);
+    save();
+  });
+  $('.fsize input', el).addEventListener('input', e => { s().size = +e.target.value; updateSlot(i); save(); });
+  $('.fcolor input', el).addEventListener('input', e => { s().color = e.target.value; updateSlot(i); save(); });
+  $('.reroll', el).addEventListener('click', () => { pushHistory(); reroll(i); save(); });
+  $('.lock', el).addEventListener('click', () => toggleLock(i));
+  $('.discard', el).addEventListener('click', () => discard(i));
+  return el;
+}
+function buildStage() {
+  stage.replaceChildren(...active().map((_, i) => slotEl(i)));
+  active().forEach((_, i) => updateSlot(i));
+  $('#nOut').value = state.n;
+  $('#minus').disabled = state.n <= 1;
+  $('#plus').disabled = state.n >= MAX_SLOTS;
+}
+function updateSlot(i, animate = false) {
+  const el = stage.children[i];
+  const s = state.slots[i];
+  if (!el || !s) return;
+  const sample = $('.sample', el);
+  sample.style.fontFamily = cssFamily(s);
+  sample.style.fontSize = s.size + 'px';
+  sample.style.lineHeight = s.size >= 44 ? 1.06 : s.size >= 24 ? 1.2 : 1.55;
+  el.style.color = s.color || '';
+  el.classList.toggle('locked', s.locked);
+
+  $('.fname', el).textContent = s.family || 'Sin fuente';
+  const sel = $('.fstyle', el);
+  const styles = fonts.get(s.family) || [];
+  if (styles.length) {
+    sel.innerHTML = styles.map(f =>
+      `<option value="${esc(f.ps || '')}"${f.ps === s.ps ? ' selected' : ''}>${esc(f.style || 'Regular')}</option>`).join('');
+    sel.disabled = styles.length < 2;
+  } else {
+    sel.innerHTML = `<option>${esc(s.style || 'Regular')}</option>`;
+    sel.disabled = true;
+  }
+  $('.fsize input', el).value = s.size;
+  $('.fsize span', el).textContent = s.size;
+  $('.fcolor input', el).value = s.color || state.fg;
+  const lock = $('.lock', el);
+  lock.setAttribute('aria-pressed', s.locked);
+  lock.innerHTML = svg(s.locked ? 'lock' : 'unlock', 15);
+
+  if (animate) {
+    sample.classList.remove('swap');
+    void sample.offsetWidth;
+    sample.classList.add('swap');
+  }
+}
+
+/* ---------- Biblioteca ---------- */
+const drawer = $('#drawer'), list = $('#list'), search = $('#search');
+function openDrawer(t) {
+  if (t) setTab(t);
+  drawer.classList.add('open');
+  drawer.setAttribute('aria-hidden', 'false');
+  renderTarget();
+  renderList();
+  if (tab !== 'saved') setTimeout(() => search.focus(), 50);
+}
+function closeDrawer() {
+  drawer.classList.remove('open');
+  drawer.setAttribute('aria-hidden', 'true');
+  if (drawer.contains(document.activeElement)) document.activeElement.blur();
+}
+function setTab(t) {
+  tab = t;
+  drawer.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  $('.dtools').style.display = t === 'saved' ? 'none' : '';
+}
+function refreshDrawer() { if (drawer.classList.contains('open')) renderList(); else updateCounts(); }
+function updateCounts() {
+  $('#cAll').textContent = families.length ? fmt(pool().length) : '';
+  $('#cSaved').textContent = state.saved.length || '';
+  $('#cEx').textContent = state.excluded.length || '';
+}
+function renderTarget() {
+  $('#target').innerHTML = '<span>Aplicar a</span>' + active().map((_, i) =>
+    `<button data-t="${i}" class="${i === targetSlot ? 'on' : ''}" aria-label="Fuente ${i + 1}">${i + 1}</button>`).join('');
+}
+function renderList() {
+  updateCounts();
+  if (tab === 'saved') {
+    list.className = 'cards';
+    list.innerHTML = state.saved.length
+      ? state.saved.map((c, k) => `
+        <div class="card" data-c="${k}" style="${esc(`background:${c.bg};color:${c.fg}`)}">
+          ${c.items.map(it => `<div class="l" style="${esc(`font-family:${cssFamily(it)};${it.color ? 'color:' + it.color : ''}`)}">${esc(it.family || '—')}</div>`).join('')}
+          <button class="pbtn" data-act="del" aria-label="Borrar">${svg('close', 16)}</button>
+        </div>`).join('')
+      : '<div class="empty">Aún no has guardado ninguna combinación</div>';
+    return;
+  }
+  const term = norm(search.value.trim());
+  let src;
+  if (tab === 'excluded') src = state.excluded.slice().sort(cmp);
+  else src = pool();
+  rows = term ? src.filter(f => norm(f).includes(term)) : src;
+  list.className = 'rows';
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty">${
+      tab === 'excluded' ? (term ? 'Sin resultados' : 'No has descartado ninguna fuente')
+      : families.length ? 'Sin resultados' : 'Todavía no se han cargado las fuentes'}</div>`;
+    return;
+  }
+  const act = tab === 'excluded'
+    ? `<button class="pbtn" data-act="restore" title="Recuperar" aria-label="Recuperar">${svg('undo', 16)}</button>`
+    : `<button class="pbtn" data-act="exclude" title="Descartar" aria-label="Descartar">${svg('ban', 16)}</button>`;
+  list.innerHTML = rows.map((f, k) => {
+    const n = (fonts.get(f) || []).length;
+    return `<div class="row" data-k="${k}"><span class="pv" style="${esc(`font-family:${cssStr(f)}, system-ui`)}">${esc(f)}</span>`
+      + `<span class="n" title="Estilos">${n > 1 ? n : ''}</span>${act}</div>`;
+  }).join('');
+}
+list.addEventListener('click', e => {
+  const btn = e.target.closest('[data-act]');
+  const card = e.target.closest('[data-c]');
+  if (card) {
+    const k = +card.dataset.c;
+    if (btn) { state.saved.splice(k, 1); save(); renderList(); }
+    else restoreCombo(k);
+    return;
+  }
+  const row = e.target.closest('[data-k]');
+  if (!row) return;
+  const fam = rows[+row.dataset.k];
+  if (btn && btn.dataset.act === 'exclude') {
+    if (!state.excluded.includes(fam)) state.excluded.push(fam);
+    save(); renderList();
+    return toast(`Descartada: ${fam}`, 'Deshacer', () => {
+      state.excluded = state.excluded.filter(x => x !== fam); save(); refreshDrawer();
+    });
+  }
+  if (btn && btn.dataset.act === 'restore') {
+    state.excluded = state.excluded.filter(x => x !== fam);
+    save(); renderList();
+    return;
+  }
+  if (tab === 'excluded') return;
+  const s = state.slots[targetSlot];
+  pushHistory();
+  assign(s, fam, false);
+  s.locked = true;
+  updateSlot(targetSlot, true);
+  save();
+  toast(`${fam} fijada en la ${targetSlot + 1}`);
+});
+$('#target').addEventListener('click', e => {
+  const b = e.target.closest('[data-t]');
+  if (b) { targetSlot = +b.dataset.t; renderTarget(); }
+});
+drawer.querySelector('.tabs').addEventListener('click', e => {
+  const b = e.target.closest('[data-tab]');
+  if (b) { setTab(b.dataset.tab); renderList(); }
+});
+let searchRaf;
+search.addEventListener('input', () => { cancelAnimationFrame(searchRaf); searchRaf = requestAnimationFrame(renderList); });
+$('#closeDrawer').addEventListener('click', closeDrawer);
+const hideSym = $('#hideSymbols'), rndStyles = $('#randomStyles');
+hideSym.checked = state.hideSymbols;
+rndStyles.checked = state.randomStyles;
+hideSym.addEventListener('change', () => { state.hideSymbols = hideSym.checked; save(); renderList(); });
+rndStyles.addEventListener('change', () => { state.randomStyles = rndStyles.checked; save(); });
+
+/* ---------- Aviso ---------- */
+const toastEl = $('#toast');
+let toastT;
+function toast(msg, label, fn) {
+  const span = document.createElement('span');
+  span.textContent = msg;
+  toastEl.replaceChildren(span);
+  if (label) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.addEventListener('click', () => { fn(); toastEl.classList.remove('show'); });
+    toastEl.append(b);
+  }
+  toastEl.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => toastEl.classList.remove('show'), label ? 5000 : 2200);
+}
+
+/* ---------- Barra y teclado ---------- */
+$('#minus').addEventListener('click', () => setN(state.n - 1));
+$('#plus').addEventListener('click', () => setN(state.n + 1));
+$('#shuffleBtn').addEventListener('click', shuffle);
+$('#undoBtn').addEventListener('click', undo);
+$('#saveBtn').addEventListener('click', saveCombo);
+$('#copyBtn').addEventListener('click', copyCombo);
+$('#libBtn').addEventListener('click', () => drawer.classList.contains('open') ? closeDrawer() : openDrawer());
+
+document.addEventListener('change', e => {
+  if (e.target.matches('input[type=range], input[type=color], input[type=checkbox], select')) e.target.blur();
+});
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  const editing = t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName);
+  if (editing) { if (e.key === 'Escape') t.blur(); return; }
+  if (!$('#gate').hidden) return;
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (t.tagName === 'BUTTON') t.blur();
+    shuffle();
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undo();
+  } else if (/^[1-9]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const i = +e.key - 1;
+    if (i < state.n) toggleLock(i);
+  } else if (e.key === 'Escape') {
+    closeDrawer();
+  }
+});
+
+/* ---------- Carga de fuentes ---------- */
+const gate = $('#gate'), gateMsg = $('#gateMsg'), loadBtn = $('#loadBtn'), fallbackBtn = $('#fallbackBtn');
+
+function ingest(items) {
+  fonts = new Map();
+  for (const f of items) {
+    if (!f.family) continue;
+    if (!fonts.has(f.family)) fonts.set(f.family, []);
+    fonts.get(f.family).push({ ps: f.ps, style: f.style });
+  }
+  for (const arr of fonts.values()) {
+    arr.sort((a, b) => italicOf(a.style) - italicOf(b.style) || weightOf(a.style) - weightOf(b.style));
+  }
+  families = [...fonts.keys()].sort(cmp);
+  if (!families.length) { gateMsg.textContent = 'No se ha encontrado ninguna fuente.'; return; }
+  gate.hidden = true;
+
+  // Rellena huecos y sustituye fuentes que no existen en este equipo.
+  const p = pool();
+  const used = new Set(active().filter(s => fonts.has(s.family)).map(s => s.family));
+  active().forEach((s, i) => {
+    if (!s.family || !fonts.has(s.family)) {
+      s.locked = false;
+      if (p.length) pickFor(s, p, used);
+    }
+    updateSlot(i, true);
+  });
+  save();
+  updateCounts();
+  toast(`${fmt(families.length)} familias cargadas`);
+}
+
+async function loadLocal() {
+  loadBtn.disabled = true;
+  loadBtn.textContent = 'Cargando…';
+  try {
+    const data = await window.queryLocalFonts();
+    ingest(data.map(f => ({ family: f.family, ps: f.postscriptName, style: f.style })));
+  } catch (err) {
+    gateMsg.textContent = err && err.name === 'NotAllowedError'
+      ? 'Permiso denegado. Actívalo desde el icono junto a la dirección y vuelve a probar.'
+      : 'El navegador ha bloqueado el acceso a las fuentes.';
+    fallbackBtn.hidden = false;
+  } finally {
+    loadBtn.disabled = false;
+    loadBtn.textContent = 'Cargar mis fuentes';
+  }
+}
+
+function detectCommon() {
+  const ctx = document.createElement('canvas').getContext('2d');
+  const sample = 'mmmmmmmmmmlli10OQ@#ñWg';
+  const bases = ['monospace', 'serif', 'sans-serif'];
+  const baseW = bases.map(b => { ctx.font = `72px ${b}`; return ctx.measureText(sample).width; });
+  const found = COMMON_FONTS.filter(name => bases.some((b, i) => {
+    ctx.font = `72px ${cssStr(name)}, ${b}`;
+    return ctx.measureText(sample).width !== baseW[i];
+  }));
+  ingest(found.map(f => ({ family: f, ps: null, style: 'Regular' })));
+}
+
+loadBtn.addEventListener('click', loadLocal);
+fallbackBtn.addEventListener('click', detectCommon);
+
+/* ---------- Arranque ---------- */
+document.querySelectorAll('[data-icon]').forEach(el => el.insertAdjacentHTML('afterbegin', svg(el.dataset.icon)));
+applyColors();
+ensureSlots();
+buildStage();
+updateCounts();
+
+(async () => {
+  if (!('queryLocalFonts' in window)) {
+    gateMsg.textContent = 'Este navegador no deja leer las fuentes instaladas. Ábrelo con Chrome o Edge.';
+    loadBtn.hidden = true;
+    fallbackBtn.hidden = false;
+    return;
+  }
+  try {
+    const perm = await navigator.permissions.query({ name: 'local-fonts' });
+    if (perm.state === 'granted') await loadLocal();
+    else if (perm.state === 'denied') {
+      gateMsg.textContent = 'El permiso de fuentes está bloqueado. Actívalo desde el icono junto a la dirección.';
+      fallbackBtn.hidden = false;
+    }
+  } catch {}
+})();
+</script>
+</body>
+</html>
