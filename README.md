@@ -68,4 +68,7 @@ En Firefox o Safari no pueden leerse, así que solo detecta una lista de fuentes
 
 ---
 
-<p align="center">Hecho por <strong>josepferreer</strong></p>
+<p align="center">
+  <img src="assets/favicon.png" alt="Tr" width="48"><br>
+  Hecho por <strong>josepferreer</strong>
+</p>
